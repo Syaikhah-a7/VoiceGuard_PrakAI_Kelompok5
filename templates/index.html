@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoiceGuard — Deteksi Audio Deepfake</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #080b12;
+      --surface:   #0f1420;
+      --surface2:  #151c2c;
+      --border:    #1e2a42;
+      --accent:    #6c5ce7;
+      --accent2:   #a29bfe;
+      --danger:    #e17055;
+      --success:   #00cec9;
+      --text:      #dfe6f0;
+      --muted:     #6b7fa3;
+      --mono:      'Space Mono', monospace;
+      --sans:      'DM Sans', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background-image:
+        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(108,92,231,.18) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 40% at 90% 90%, rgba(0,206,201,.08) 0%, transparent 60%);
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 560px;
+      box-shadow: 0 32px 80px rgba(0,0,0,.5), 0 0 0 1px rgba(108,92,231,.08);
+    }
+
+    /* ── Header ── */
+    .header { margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent), var(--success));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .logo-text { font-family: var(--mono); font-size: 22px; font-weight: 700; letter-spacing: -1px; }
+    .logo-text span { color: var(--accent2); }
+    .subtitle { color: var(--muted); font-size: 13.5px; line-height: 1.5; margin-bottom: 10px; }
+
+    /* ── Disclaimer ── */
+    .disclaimer {
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(108,92,231,.07);
+      border: 1px solid rgba(108,92,231,.18);
+      border-radius: 8px;
+      padding: 10px 13px;
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+    .disclaimer strong { color: var(--accent2); }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      background: var(--surface2);
+      border-radius: 12px;
+      padding: 4px;
+      gap: 4px;
+      margin-bottom: 24px;
+      border: 1px solid var(--border);
+    }
+    .tab {
+      flex: 1; padding: 10px 8px;
+      border-radius: 9px; border: none;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: 13.5px; font-weight: 500;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .tab.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 2px 12px rgba(108,92,231,.4);
+    }
+
+    /* ── Panels ── */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 1.5px dashed var(--border);
+      border-radius: 14px;
+      padding: 36px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      background: var(--surface2);
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(108,92,231,.06);
+    }
+    .drop-icon { font-size: 38px; margin-bottom: 12px; }
+    .drop-text { color: var(--muted); font-size: 13.5px; line-height: 1.8; }
+    .drop-text strong { color: var(--text); }
+    .file-name {
+      margin-top: 10px; font-size: 13px;
+      color: var(--accent2); font-weight: 500;
+      font-family: var(--mono);
+      word-break: break-all;
+    }
+    .format-note { font-size: 12px; color: #3a4a6a; margin-top: 8px; text-align: center; }
+
+    /* ── Record area ── */
+    .record-area {
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 32px 24px;
+      text-align: center;
+      background: var(--surface2);
+    }
+    .record-icon { font-size: 44px; margin-bottom: 10px; transition: all .3s; }
+
+    .timer {
+      font-family: var(--mono);
+      font-size: 38px; font-weight: 700;
+      color: var(--text); margin: 10px 0;
+      display: none;
+    }
+    .timer.visible { display: block; }
+
+    .rec-progress-wrap {
+      height: 5px; background: var(--border);
+      border-radius: 3px; margin: 12px 0 20px;
+      display: none; overflow: hidden;
+    }
+    .rec-progress-wrap.visible { display: block; }
+    .rec-progress-bar {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--danger));
+      border-radius: 3px;
+      transition: width .1s linear;
+    }
+
+    .rec-status { font-size: 13px; color: var(--muted); margin-bottom: 16px; min-height: 20px; }
+    .rec-status .dot {
+      display: inline-block; width: 8px; height: 8px;
+      background: #e74c3c; border-radius: 50%; margin-right: 6px;
+      animation: blink 1s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    canvas#waveform {
+      width: 100%; height: 52px;
+      border-radius: 8px; background: var(--bg);
+      display: none; margin-bottom: 12px;
+      border: 1px solid var(--border);
+    }
+    canvas#waveform.visible { display: block; }
+
+    /* ── Audio playback ── */
+    .playback-section {
+      margin-top: 16px;
+      padding: 16px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: none;
+    }
+    .playback-section.visible { display: block; }
+    .playback-label {
+      font-size: 12px; color: var(--muted);
+      margin-bottom: 10px; font-family: var(--mono);
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    audio {
+      width: 100%; border-radius: 8px;
+      accent-color: var(--accent);
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      width: 100%; margin-top: 14px;
+      padding: 13px; border-radius: 11px; border: none;
+      font-family: var(--sans); font-size: 14.5px; font-weight: 600;
+      cursor: pointer; transition: all .2s;
+    }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #8b7cf8);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(108,92,231,.35);
+    }
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(108,92,231,.45);
+    }
+    .btn-danger {
+      background: linear-gradient(135deg, #c0392b, var(--danger));
+      color: #fff; display: none;
+      box-shadow: 0 4px 14px rgba(225,112,85,.3);
+    }
+    .btn-danger:hover:not(:disabled) { transform: translateY(-1px); }
+
+    .btn-success {
+      background: linear-gradient(135deg, #00b894, var(--success));
+      color: #fff; display: none;
+      box-shadow: 0 4px 14px rgba(0,206,201,.3);
+    }
+    .btn-success:hover:not(:disabled) { transform: translateY(-1px); }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      margin-top: 8px;
+    }
+    .btn-outline:hover:not(:disabled) { border-color: var(--accent2); color: var(--text); }
+
+    .spinner {
+      display: inline-block; width: 15px; height: 15px;
+      border: 2px solid rgba(255,255,255,.25);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin-right: 8px; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Result ── */
+    .result {
+      margin-top: 24px; padding: 24px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      display: none;
+      animation: fadeUp .4s ease;
+    }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+    .result-badge {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 1.5px;
+      padding: 4px 10px; border-radius: 6px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .result-badge.real { background: rgba(0,206,201,.15); color: var(--success); }
+    .result-badge.fake { background: rgba(225,112,85,.15); color: var(--danger); }
+
+    .result-label { font-size: 30px; font-weight: 700; margin-bottom: 4px; font-family: var(--mono); }
+    .result-label.real { color: var(--success); }
+    .result-label.fake { color: var(--danger); }
+    .conf-text { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+
+    .bar-row { margin-bottom: 12px; }
+    .bar-label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
+    .bar-label span:last-child { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    .bar-track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width .7s cubic-bezier(.4,0,.2,1); }
+    .bar-fill.real { background: linear-gradient(90deg, #00b894, var(--success)); }
+    .bar-fill.fake { background: linear-gradient(90deg, #c0392b, var(--danger)); }
+
+    .reset {
+      display: block; text-align: center; margin-top: 16px;
+      font-size: 13px; color: #3a4a6a; cursor: pointer;
+      text-decoration: none; transition: color .2s;
+    }
+    .reset:hover { color: var(--muted); }
+
+    /* ── Responsive ── */
+    @media (max-width: 480px) {
+      .card { padding: 28px 20px; }
+      .logo-text { font-size: 19px; }
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-icon">🛡️</div>
+    <div class="logo-text">Voice<span>Guard</span></div>
+  </div>
+  <p class="subtitle">Deteksi apakah suara ini asli manusia atau dihasilkan oleh AI (deepfake)</p>
+
+  <!-- Disclaimer -->
+  <div class="disclaimer">
+    ⚠️ <strong>Catatan:</strong> Model dilatih pada dataset suara manusia berbicara.
+    Akurasi optimal untuk input suara vokal manusia dengan kualitas rekaman yang baik.
+    Musik, suara lingkungan, atau rekaman kualitas rendah dapat menurunkan akurasi prediksi.
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('upload')">📁 Upload File</button>
+    <button class="tab"        onclick="switchTab('record')">🎙️ Rekam Langsung</button>
+  </div>
+
+  <!-- ═══ Panel Upload ═══ -->
+  <div class="panel active" id="panel-upload">
+    <div class="drop-zone" id="dropZone" onclick="fileInput.click()">
+      <div class="drop-icon">🎵</div>
+      <p class="drop-text"><strong>Klik untuk pilih file</strong> atau drag & drop di sini</p>
+      <p class="drop-text">WAV · OGG · AAC · M4A · MP3</p>
+      <p class="file-name" id="fileName"></p>
+    </div>
+    <input type="file" id="fileInput" accept=".wav,.ogg,.aac,.m4a,.mp3" hidden>
+    <p class="format-note">Voice note WhatsApp (.ogg) langsung bisa digunakan</p>
+
+    <!-- Playback upload -->
+    <div class="playback-section" id="uploadPlayback">
+      <div class="playback-label">🎧 Dengarkan dulu sebelum analisis</div>
+      <audio id="uploadAudio" controls></audio>
+    </div>
+
+    <button class="btn btn-primary" id="uploadBtn" style="display:none" onclick="analyzeFile()">
+      Analisis Sekarang
+    </button>
+    <button class="btn btn-outline" id="uploadResetBtn" style="display:none" onclick="resetUpload()">
+      Pilih File Lain
+    </button>
+  </div>
+
+  <!-- ═══ Panel Rekam ═══ -->
+  <div class="panel" id="panel-record">
+    <div class="record-area">
+      <div class="record-icon" id="recIcon">🎙️</div>
+      <canvas id="waveform"></canvas>
+      <div class="timer" id="timer">0:00</div>
+      <div class="rec-progress-wrap" id="recProgressWrap">
+        <div class="rec-progress-bar" id="recProgressBar"></div>
+      </div>
+      <div class="rec-status" id="recStatus">Tekan tombol untuk mulai merekam</div>
+
+      <button class="btn btn-primary" id="startBtn" onclick="startRecording()">
+        ⏺ Mulai Rekam
+      </button>
+      <button class="btn btn-danger" id="stopBtn" onclick="stopRecording()">
+        ⏹ Stop Rekaman
+      </button>
+    </div>
+
+    <!-- Playback rekaman -->
+    <div class="playback-section" id="recPlayback">
+      <div class="playback-label">🎧 Dengarkan hasil rekaman</div>
+      <audio id="recAudio" controls></audio>
+    </div>
+
+    <button class="btn btn-success" id="analyzeAfterBtn" onclick="analyzeRecording()">
+      ✅ Analisis Rekaman Ini
+    </button>
+    <button class="btn btn-outline" id="rerecordBtn" style="display:none" onclick="resetRecording()">
+      🔄 Rekam Ulang
+    </button>
+  </div>
+
+  <!-- ═══ Hasil Prediksi ═══ -->
+  <div class="result" id="result">
+    <div class="result-badge" id="resultBadge"></div>
+    <div class="result-label" id="resultLabel"></div>
+    <div class="conf-text"   id="confText"></div>
+
+    <div class="bar-row">
+      <div class="bar-label">
+        <span>Real (Suara Asli)</span>
+        <span id="realPct">0%</span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill real" id="realBar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">
+        <span>Deepfake (AI Generated)</span>
+        <span id="fakePct">0%</span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill fake" id="fakeBar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <span class="reset" onclick="fullReset()">↩ Coba file atau rekaman lain</span>
+  </div>
+
+</div><!-- /card -->
+
+<script>
+  // ══════════════════════════════════════════════════
+  //  TAB SWITCHER
+  // ══════════════════════════════════════════════════
+  function switchTab(tab) {
+    const tabs = document.querySelectorAll(".tab");
+    tabs[0].classList.toggle("active", tab === "upload");
+    tabs[1].classList.toggle("active", tab === "record");
+    document.getElementById("panel-upload").classList.toggle("active", tab === "upload");
+    document.getElementById("panel-record").classList.toggle("active", tab === "record");
+    document.getElementById("result").style.display = "none";
+  }
+
+  // ══════════════════════════════════════════════════
+  //  UPLOAD FILE
+  // ══════════════════════════════════════════════════
+  const fileInput = document.getElementById("fileInput");
+  const dropZone  = document.getElementById("dropZone");
+  let selectedFile = null;
+
+  fileInput.addEventListener("change", e => setFile(e.target.files[0]));
+
+  dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("drag-over");
+    setFile(e.dataTransfer.files[0]);
+  });
+
+  function setFile(f) {
+    if (!f) return;
+    selectedFile = f;
+    document.getElementById("fileName").textContent = "📎 " + f.name;
+
+    // Tampilkan audio player untuk dengar dulu
+    const uploadAudio   = document.getElementById("uploadAudio");
+    uploadAudio.src     = URL.createObjectURL(f);
+    document.getElementById("uploadPlayback").classList.add("visible");
+
+    document.getElementById("uploadBtn").style.display      = "block";
+    document.getElementById("uploadResetBtn").style.display = "block";
+    document.getElementById("result").style.display         = "none";
+  }
+
+  async function analyzeFile() {
+    if (!selectedFile) return;
+    const btn = document.getElementById("uploadBtn");
+    btn.disabled  = true;
+    btn.innerHTML = '<span class="spinner"></span>Menganalisis...';
+
+    const form = new FormData();
+    form.append("audio", selectedFile);
+    await sendToServer(form);
+
+    btn.disabled  = false;
+    btn.innerHTML = "Analisis Sekarang";
+  }
+
+  function resetUpload() {
+    selectedFile = null;
+    fileInput.value = "";
+    document.getElementById("fileName").textContent             = "";
+    document.getElementById("uploadBtn").style.display          = "none";
+    document.getElementById("uploadResetBtn").style.display     = "none";
+    document.getElementById("uploadPlayback").classList.remove("visible");
+    document.getElementById("uploadAudio").src                  = "";
+    document.getElementById("result").style.display             = "none";
+    resetBars();
+  }
+
+  // ══════════════════════════════════════════════════
+  //  REKAM LANGSUNG
+  // ══════════════════════════════════════════════════
+  const MAX_SECONDS = 10;
+  let mediaRecorder = null;
+  let audioChunks   = [];
+  let timerInterval = null;
+  let elapsed       = 0;
+  let animFrame     = null;
+  let analyserNode  = null;
+  let canvasCtx     = null;
+  let recordedBlob  = null;
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setupWaveform(stream);
+
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks   = [];
+      recordedBlob  = null;
+
+      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        stopWaveform();
+        recordedBlob = new Blob(audioChunks, { type: "audio/webm" });
+
+        // Tampilkan audio player
+        const recAudio = document.getElementById("recAudio");
+        recAudio.src   = URL.createObjectURL(recordedBlob);
+        document.getElementById("recPlayback").classList.add("visible");
+
+        // Tampilkan tombol analisis & rekam ulang
+        document.getElementById("analyzeAfterBtn").style.display = "block";
+        document.getElementById("rerecordBtn").style.display     = "block";
+
+        // Reset UI rekam
+        document.getElementById("stopBtn").style.display  = "none";
+        document.getElementById("startBtn").style.display = "none";
+        document.getElementById("recIcon").textContent    = "✅";
+        document.getElementById("recStatus").textContent  = "Rekaman selesai — dengarkan dulu, lalu klik Analisis";
+        document.getElementById("timer").classList.remove("visible");
+        document.getElementById("recProgressWrap").classList.remove("visible");
+        document.getElementById("waveform").classList.remove("visible");
+        document.getElementById("recProgressBar").style.width = "0%";
+      };
+
+      mediaRecorder.start();
+      elapsed = 0;
+      updateTimer();
+
+      timerInterval = setInterval(() => {
+        elapsed++;
+        updateTimer();
+        document.getElementById("recProgressBar").style.width = (elapsed / MAX_SECONDS * 100) + "%";
+        if (elapsed >= MAX_SECONDS) stopRecording();
+      }, 1000);
+
+      // UI saat rekam
+      document.getElementById("startBtn").style.display = "none";
+      document.getElementById("stopBtn").style.display  = "block";
+      document.getElementById("recIcon").textContent    = "🔴";
+      document.getElementById("recStatus").innerHTML    = '<span class="dot"></span>Sedang merekam... (maks 10 detik)';
+      document.getElementById("timer").classList.add("visible");
+      document.getElementById("recProgressWrap").classList.add("visible");
+      document.getElementById("waveform").classList.add("visible");
+      document.getElementById("recPlayback").classList.remove("visible");
+      document.getElementById("analyzeAfterBtn").style.display = "none";
+      document.getElementById("rerecordBtn").style.display     = "none";
+      document.getElementById("result").style.display          = "none";
+
+    } catch (err) {
+      alert("Tidak bisa akses mikrofon.\nPastikan izin mikrofon sudah diberikan di browser.");
+    }
+  }
+
+  function stopRecording() {
+    if (!mediaRecorder || mediaRecorder.state === "inactive") return;
+    clearInterval(timerInterval);
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+  }
+
+  async function analyzeRecording() {
+    if (!recordedBlob) return;
+    const btn = document.getElementById("analyzeAfterBtn");
+    btn.disabled  = true;
+    btn.innerHTML = '<span class="spinner"></span>Menganalisis...';
+
+    const file = new File([recordedBlob], "rekaman.webm", { type: "audio/webm" });
+    const form = new FormData();
+    form.append("audio", file);
+    await sendToServer(form);
+
+    btn.disabled  = false;
+    btn.innerHTML = "✅ Analisis Rekaman Ini";
+  }
+
+  function resetRecording() {
+    recordedBlob  = null;
+    audioChunks   = [];
+    elapsed       = 0;
+    document.getElementById("recIcon").textContent              = "🎙️";
+    document.getElementById("recStatus").textContent            = "Tekan tombol untuk mulai merekam";
+    document.getElementById("startBtn").style.display           = "block";
+    document.getElementById("stopBtn").style.display            = "none";
+    document.getElementById("analyzeAfterBtn").style.display    = "none";
+    document.getElementById("rerecordBtn").style.display        = "none";
+    document.getElementById("recPlayback").classList.remove("visible");
+    document.getElementById("recAudio").src                     = "";
+    document.getElementById("result").style.display             = "none";
+    resetBars();
+  }
+
+  function updateTimer() {
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    document.getElementById("timer").textContent = `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  // ── Waveform visualizer ──────────────────────────
+  function setupWaveform(stream) {
+    const audioCtx  = new AudioContext();
+    const source    = audioCtx.createMediaStreamSource(stream);
+    analyserNode    = audioCtx.createAnalyser();
+    analyserNode.fftSize = 512;
+    source.connect(analyserNode);
+
+    const canvas    = document.getElementById("waveform");
+    canvasCtx       = canvas.getContext("2d");
+    canvas.width    = canvas.offsetWidth * window.devicePixelRatio;
+    canvas.height   = 52 * window.devicePixelRatio;
+    canvas.style.width  = "100%";
+    canvas.style.height = "52px";
+    drawWaveform();
+  }
+
+  function drawWaveform() {
+    const canvas = document.getElementById("waveform");
+    const data   = new Uint8Array(analyserNode.fftSize);
+    analyserNode.getByteTimeDomainData(data);
+
+    canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+    canvasCtx.strokeStyle = "#a29bfe";
+    canvasCtx.lineWidth   = 1.5;
+    canvasCtx.shadowColor = "#6c5ce7";
+    canvasCtx.shadowBlur  = 6;
+    canvasCtx.beginPath();
+
+    const sliceW = canvas.width / data.length;
+    let x = 0;
+    data.forEach((v, i) => {
+      const y = (v / 128.0) * (canvas.height / 2);
+      i === 0 ? canvasCtx.moveTo(x, y) : canvasCtx.lineTo(x, y);
+      x += sliceW;
+    });
+    canvasCtx.stroke();
+    animFrame = requestAnimationFrame(drawWaveform);
+  }
+
+  function stopWaveform() {
+    cancelAnimationFrame(animFrame);
+  }
+
+  // ══════════════════════════════════════════════════
+  //  KIRIM KE BACKEND & TAMPILKAN HASIL
+  // ══════════════════════════════════════════════════
+  async function sendToServer(formData) {
+    try {
+      const res  = await fetch("/predict", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.error) { alert("Error: " + data.error); return; }
+      showResult(data);
+    } catch (err) {
+      alert("Gagal terhubung ke server: " + err.message);
+    }
+  }
+
+  function showResult(data) {
+    const isReal = data.label === "REAL";
+
+    document.getElementById("resultBadge").textContent  = isReal ? "✔ Terdeteksi Asli" : "⚠ Terdeteksi Deepfake";
+    document.getElementById("resultBadge").className    = "result-badge " + (isReal ? "real" : "fake");
+    document.getElementById("resultLabel").textContent  = data.label;
+    document.getElementById("resultLabel").className    = "result-label " + (isReal ? "real" : "fake");
+    document.getElementById("confText").textContent     = `Keyakinan model: ${data.confidence}% · Probabilitas real ${data.prob_real}% / deepfake ${data.prob_fake}%`;
+    document.getElementById("realPct").textContent      = data.prob_real + "%";
+    document.getElementById("fakePct").textContent      = data.prob_fake + "%";
+    document.getElementById("result").style.display     = "block";
+
+    setTimeout(() => {
+      document.getElementById("realBar").style.width = data.prob_real + "%";
+      document.getElementById("fakeBar").style.width = data.prob_fake + "%";
+    }, 60);
+  }
+
+  function resetBars() {
+    document.getElementById("realBar").style.width = "0%";
+    document.getElementById("fakeBar").style.width = "0%";
+  }
+
+  function fullReset() {
+    resetUpload();
+    resetRecording();
+    document.getElementById("result").style.display = "none";
+  }
+</script>
+</body>
+</html>

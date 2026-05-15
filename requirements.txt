@@ -1,0 +1,8 @@
+flask
+tensorflow
+librosa
+matplotlib
+Pillow
+numpy
+gunicorn
+gdown
