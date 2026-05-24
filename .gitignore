@@ -1,6 +1,28 @@
-venv/
+# Python artifacts
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment (jika ada)
+venv/
+.venv/
+env/
+
+# Data & Model berat (Supaya file .keras tidak ikut ke-upload)
+models/
 *.keras
 *.h5
-.env
+*.pkl
+
+# File Audio Sementara (Temporary files dari Flask)
+*.wav
+*.webm
+*.mp3
+*.ogg
+*.aac
+*.m4a
+
+# OS metadata
+.DS_Store
+Thumbs.db

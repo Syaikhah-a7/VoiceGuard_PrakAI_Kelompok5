@@ -10,6 +10,9 @@ from PIL import Image
 from pydub import AudioSegment
 import tempfile, os, io, logging
 from config import SR, TARGET_DURATION, IMG_SIZE, N_MELS, MODEL_PATH
+import static_ffmpeg
+# Baris ini berfungsi memaksa pydub mendeteksi biner FFmpeg dari package internal Python
+static_ffmpeg.add_paths()
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)

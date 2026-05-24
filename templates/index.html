@@ -3,687 +3,488 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VoiceGuard — Deteksi Audio Deepfake</title>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <title>VoiceGuard — Verifikasi Suara Manusia & AI</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg:        #080b12;
-      --surface:   #0f1420;
-      --surface2:  #151c2c;
-      --border:    #1e2a42;
-      --accent:    #6c5ce7;
-      --accent2:   #a29bfe;
-      --danger:    #e17055;
-      --success:   #00cec9;
-      --text:      #dfe6f0;
-      --muted:     #6b7fa3;
-      --mono:      'Space Mono', monospace;
-      --sans:      'DM Sans', sans-serif;
+      --ink:    #0a0b14;
+      --glass:  rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.10);
+      --border-h: rgba(255,255,255,0.22);
+      --accent: #7b5ef8;
+      --accent2: #a78bfa;
+      --teal:   #2dd4bf;
+      --rose:   #fb7185;
+      --gold:   #f0c27f;
+      --text:   #e8e4f0;
+      --muted:  rgba(232,228,240,0.45);
+      --serif:  'Cormorant Garamond', Georgia, serif;
+      --sans:   'DM Sans', sans-serif;
     }
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--sans); background: var(--ink); color: var(--text); min-height: 100vh; overflow-x: hidden; }
 
-    body {
-      font-family: var(--sans);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      background-image:
-        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(108,92,231,.18) 0%, transparent 70%),
-        radial-gradient(ellipse 40% 40% at 90% 90%, rgba(0,206,201,.08) 0%, transparent 60%);
-    }
+    /* Orbs */
+    .bg-orbs { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+    .orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.18; animation: drift 20s ease-in-out infinite alternate; }
+    .orb-1 { width: 600px; height: 600px; background: radial-gradient(circle, #7b5ef8, transparent); top: -200px; left: -100px; }
+    .orb-2 { width: 500px; height: 500px; background: radial-gradient(circle, #2dd4bf, transparent); top: 30%; right: -150px; animation-delay: -7s; }
+    .orb-3 { width: 400px; height: 400px; background: radial-gradient(circle, #fb7185, transparent); bottom: -100px; left: 30%; animation-delay: -14s; }
+    @keyframes drift { from { transform: translate(0,0) scale(1); } to { transform: translate(40px,30px) scale(1.08); } }
+    body::after { content:''; position:fixed; inset:0; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E"); opacity:.35; pointer-events:none; z-index:1; }
+    .page { position: relative; z-index: 2; }
 
-    /* ── Card ── */
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 40px 36px;
-      width: 100%;
-      max-width: 560px;
-      box-shadow: 0 32px 80px rgba(0,0,0,.5), 0 0 0 1px rgba(108,92,231,.08);
-    }
+    /* HERO */
+    .hero { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:48px 24px; text-align:center; }
+    .hero-eyebrow { font-size:11px; font-weight:500; letter-spacing:3px; text-transform:uppercase; color:var(--accent2); margin-bottom:20px; opacity:0; animation:fadeUp .8s .1s forwards; }
+    .hero-title { font-family:var(--serif); font-size:clamp(40px,8vw,80px); font-weight:300; line-height:1.1; letter-spacing:-1px; margin-bottom:16px; opacity:0; animation:fadeUp .9s .25s forwards; }
+    .hero-title em { font-style:italic; background:linear-gradient(135deg, var(--accent2), var(--teal)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .hero-sub { font-size:16px; font-weight:300; color:var(--muted); max-width:480px; line-height:1.7; margin-bottom:56px; opacity:0; animation:fadeUp .9s .4s forwards; }
 
-    /* ── Header ── */
-    .header { margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
-    .logo-icon {
-      width: 36px; height: 36px;
-      background: linear-gradient(135deg, var(--accent), var(--success));
-      border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 18px; flex-shrink: 0;
-    }
-    .logo-text { font-family: var(--mono); font-size: 22px; font-weight: 700; letter-spacing: -1px; }
-    .logo-text span { color: var(--accent2); }
-    .subtitle { color: var(--muted); font-size: 13.5px; line-height: 1.5; margin-bottom: 10px; }
+    /* Mic orb */
+    .mic-orb-wrap { position:relative; width:120px; height:120px; margin-bottom:48px; opacity:0; animation:fadeUp .9s .55s forwards; }
+    .mic-ring { position:absolute; inset:0; border-radius:50%; border:1px solid var(--border-h); animation:pulse-ring 3s ease-in-out infinite; }
+    .mic-ring-2 { position:absolute; inset:-20px; border-radius:50%; border:1px solid rgba(255,255,255,.05); animation:pulse-ring 3s ease-in-out infinite 1s; }
+    .mic-ring-3 { position:absolute; inset:-42px; border-radius:50%; border:1px solid rgba(255,255,255,.03); animation:pulse-ring 3s ease-in-out infinite 2s; }
+    @keyframes pulse-ring { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.04)} }
+    .mic-orb { width:100%; height:100%; border-radius:50%; background:radial-gradient(circle at 35% 35%, rgba(123,94,248,.4), rgba(45,212,191,.15) 60%, rgba(0,0,0,.4)); backdrop-filter:blur(20px); border:1px solid var(--border-h); display:flex; align-items:center; justify-content:center; box-shadow:0 0 60px rgba(123,94,248,.2),inset 0 1px 0 rgba(255,255,255,.15); cursor:pointer; transition:transform .3s,box-shadow .3s; }
+    .mic-orb:hover { transform:scale(1.04); box-shadow:0 0 90px rgba(123,94,248,.4),inset 0 1px 0 rgba(255,255,255,.2); }
+    .mic-orb svg { width:48px; height:48px; }
 
-    /* ── Disclaimer ── */
-    .disclaimer {
-      font-size: 12px;
-      color: var(--muted);
-      background: rgba(108,92,231,.07);
-      border: 1px solid rgba(108,92,231,.18);
-      border-radius: 8px;
-      padding: 10px 13px;
-      margin-bottom: 24px;
-      line-height: 1.6;
-    }
-    .disclaimer strong { color: var(--accent2); }
+    .btn-cta { display:inline-flex; align-items:center; gap:10px; padding:14px 36px; border-radius:100px; border:1px solid var(--border-h); background:linear-gradient(135deg,rgba(123,94,248,.25),rgba(45,212,191,.1)); backdrop-filter:blur(16px); color:var(--text); font-family:var(--sans); font-size:14px; font-weight:500; letter-spacing:.5px; cursor:pointer; transition:all .25s; box-shadow:0 4px 24px rgba(123,94,248,.2),inset 0 1px 0 rgba(255,255,255,.1); opacity:0; animation:fadeUp .9s .7s forwards; }
+    .btn-cta:hover { background:linear-gradient(135deg,rgba(123,94,248,.4),rgba(45,212,191,.2)); transform:translateY(-2px); }
 
-    /* ── Tabs ── */
-    .tabs {
-      display: flex;
-      background: var(--surface2);
-      border-radius: 12px;
-      padding: 4px;
-      gap: 4px;
-      margin-bottom: 24px;
-      border: 1px solid var(--border);
-    }
-    .tab {
-      flex: 1; padding: 10px 8px;
-      border-radius: 9px; border: none;
-      background: transparent;
-      color: var(--muted);
-      font-family: var(--sans);
-      font-size: 13.5px; font-weight: 500;
-      cursor: pointer;
-      transition: all .2s;
-    }
-    .tab.active {
-      background: var(--accent);
-      color: #fff;
-      box-shadow: 0 2px 12px rgba(108,92,231,.4);
-    }
+    .scroll-hint { position: absolute; 
+  bottom: 32px; 
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: max-content;
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  gap: 8px; 
+  color: var(--muted); 
+  font-size: 11px; 
+  letter-spacing: 2px; 
+  text-transform: uppercase; 
+  opacity: 0; 
+  animation: fadeUp .9s 1.2s forwards; 
+}
+    .scroll-hint .line { width:1px; height:40px; background:linear-gradient(to bottom,var(--accent2),transparent); animation:scroll-line 2s ease-in-out infinite; }
+    @keyframes scroll-line { 0%,100%{opacity:.3;transform:scaleY(.6)} 50%{opacity:1;transform:scaleY(1)} }
 
-    /* ── Panels ── */
-    .panel { display: none; }
-    .panel.active { display: block; }
+    /* REMINDER */
+    .reminder-section { padding:80px 24px; display:flex; justify-content:center; }
+    .reminder-card { max-width:680px; width:100%; background:var(--glass); backdrop-filter:blur(24px); border:1px solid var(--border); border-radius:20px; padding:40px 48px; position:relative; overflow:hidden; }
+    .reminder-card::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--gold),transparent); opacity:.4; }
+    .reminder-icon { font-size:28px; margin-bottom:16px; display:block; }
+    .reminder-label { font-size:10px; font-weight:500; letter-spacing:3px; text-transform:uppercase; color:var(--gold); margin-bottom:10px; }
+    .reminder-title { font-family:var(--serif); font-size:28px; font-weight:300; line-height:1.3; margin-bottom:20px; }
+    .reminder-title em { font-style:italic; color:var(--accent2); }
+    .reminder-body { font-size:14.5px; font-weight:300; color:var(--muted); line-height:1.8; }
+    .reminder-items { margin-top:24px; display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .reminder-item { display:flex; align-items:flex-start; gap:10px; padding:14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); border-radius:12px; font-size:13px; color:var(--muted); line-height:1.5; }
+    .reminder-item .dot { width:6px; height:6px; border-radius:50%; background:var(--gold); flex-shrink:0; margin-top:5px; }
 
-    /* ── Drop zone ── */
-    .drop-zone {
-      border: 1.5px dashed var(--border);
-      border-radius: 14px;
-      padding: 36px 24px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color .2s, background .2s;
-      background: var(--surface2);
-    }
-    .drop-zone:hover, .drop-zone.drag-over {
-      border-color: var(--accent);
-      background: rgba(108,92,231,.06);
-    }
-    .drop-icon { font-size: 38px; margin-bottom: 12px; }
-    .drop-text { color: var(--muted); font-size: 13.5px; line-height: 1.8; }
-    .drop-text strong { color: var(--text); }
-    .file-name {
-      margin-top: 10px; font-size: 13px;
-      color: var(--accent2); font-weight: 500;
-      font-family: var(--mono);
-      word-break: break-all;
-    }
-    .format-note { font-size: 12px; color: #3a4a6a; margin-top: 8px; text-align: center; }
+    /* APP */
+    .app-section { padding:40px 24px 100px; display:flex; flex-direction:column; align-items:center; gap:24px; }
+    .section-label { font-size:10px; font-weight:500; letter-spacing:3px; text-transform:uppercase; color:var(--muted); text-align:center; }
 
-    /* ── Record area ── */
-    .record-area {
-      border: 1.5px solid var(--border);
-      border-radius: 14px;
-      padding: 32px 24px;
-      text-align: center;
-      background: var(--surface2);
-    }
-    .record-icon { font-size: 44px; margin-bottom: 10px; transition: all .3s; }
+    .glass-card { width:100%; max-width:680px; background:var(--glass); backdrop-filter:blur(24px); border:1px solid var(--border); border-radius:20px; overflow:hidden; position:relative; }
+    .glass-card::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(255,255,255,.2),transparent); }
+    .card-inner { padding:32px; }
 
-    .timer {
-      font-family: var(--mono);
-      font-size: 38px; font-weight: 700;
-      color: var(--text); margin: 10px 0;
-      display: none;
-    }
-    .timer.visible { display: block; }
+    .tabs { display:flex; background:rgba(0,0,0,.2); border-radius:12px; padding:4px; gap:4px; margin-bottom:28px; border:1px solid var(--border); }
+    .tab { flex:1; padding:11px 8px; border-radius:9px; border:none; background:transparent; color:var(--muted); font-family:var(--sans); font-size:13px; font-weight:500; cursor:pointer; transition:all .25s; }
+    .tab.active { background:linear-gradient(135deg,rgba(123,94,248,.3),rgba(45,212,191,.15)); color:var(--text); border:1px solid var(--border-h); box-shadow:0 2px 12px rgba(123,94,248,.2); }
 
-    .rec-progress-wrap {
-      height: 5px; background: var(--border);
-      border-radius: 3px; margin: 12px 0 20px;
-      display: none; overflow: hidden;
-    }
-    .rec-progress-wrap.visible { display: block; }
-    .rec-progress-bar {
-      height: 100%; width: 0%;
-      background: linear-gradient(90deg, var(--accent), var(--danger));
-      border-radius: 3px;
-      transition: width .1s linear;
-    }
+    .drop-zone { border:1.5px dashed rgba(255,255,255,.12); border-radius:16px; padding:44px 24px; text-align:center; cursor:pointer; transition:all .25s; background:rgba(255,255,255,.02); }
+    .drop-zone:hover, .drop-zone.drag-over { border-color:var(--accent2); background:rgba(123,94,248,.06); }
+    .drop-icon { width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg,rgba(123,94,248,.2),rgba(45,212,191,.1)); border:1px solid var(--border-h); display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:22px; }
+    .drop-title { font-family:var(--serif); font-size:20px; font-weight:300; margin-bottom:6px; }
+    .drop-sub { font-size:12px; color:var(--muted); line-height:1.6; }
+    .drop-formats { margin-top:12px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap; }
+    .fmt-badge { padding:3px 10px; border-radius:100px; background:rgba(255,255,255,.06); border:1px solid var(--border); font-size:11px; color:var(--muted); font-weight:500; }
+    .file-chosen { margin-top:14px; font-size:13px; color:var(--accent2); font-weight:500; }
 
-    .rec-status { font-size: 13px; color: var(--muted); margin-bottom: 16px; min-height: 20px; }
-    .rec-status .dot {
-      display: inline-block; width: 8px; height: 8px;
-      background: #e74c3c; border-radius: 50%; margin-right: 6px;
-      animation: blink 1s ease-in-out infinite;
-    }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+    .record-area { border:1.5px solid var(--border); border-radius:16px; padding:36px 24px; text-align:center; background:rgba(255,255,255,.02); }
+    .rec-orb-wrap { position:relative; width:100px; height:100px; margin:0 auto 20px; }
+    .rec-orb { width:100%; height:100%; border-radius:50%; background:radial-gradient(circle at 35% 35%,rgba(123,94,248,.3),rgba(0,0,0,.5)); border:1px solid var(--border-h); display:flex; align-items:center; justify-content:center; font-size:32px; transition:all .3s; }
+    .rec-orb.recording { background:radial-gradient(circle at 35% 35%,rgba(251,113,133,.4),rgba(0,0,0,.5)); animation:rec-pulse 1.5s ease-in-out infinite; }
+    @keyframes rec-pulse { 0%,100%{box-shadow:0 0 30px rgba(251,113,133,.3)} 50%{box-shadow:0 0 60px rgba(251,113,133,.5)} }
+    .rec-title { font-family:var(--serif); font-size:20px; font-weight:300; margin-bottom:6px; }
+    .rec-status { font-size:13px; color:var(--muted); margin-bottom:20px; min-height:20px; }
+    .rec-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--rose); margin-right:6px; animation:blink 1s ease-in-out infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+    .timer { font-family:var(--serif); font-size:44px; font-weight:300; color:var(--text); margin:8px 0; display:none; }
+    .timer.show { display:block; }
+    .prog-wrap { height:3px; background:rgba(255,255,255,.08); border-radius:2px; margin:12px 0 20px; display:none; overflow:hidden; }
+    .prog-wrap.show { display:block; }
+    .prog-bar { height:100%; background:linear-gradient(90deg,var(--accent),var(--rose)); border-radius:2px; transition:width .1s linear; }
+    canvas#waveform { width:100%; height:48px; border-radius:8px; background:rgba(0,0,0,.2); display:none; margin-bottom:16px; }
+    canvas#waveform.show { display:block; }
 
-    canvas#waveform {
-      width: 100%; height: 52px;
-      border-radius: 8px; background: var(--bg);
-      display: none; margin-bottom: 12px;
-      border: 1px solid var(--border);
-    }
-    canvas#waveform.visible { display: block; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 28px; border-radius:100px; border:1px solid var(--border-h); font-family:var(--sans); font-size:13.5px; font-weight:500; cursor:pointer; transition:all .25s; width:100%; letter-spacing:.3px; }
+    .btn:disabled { opacity:.4; cursor:not-allowed; }
+    .btn-primary { background:linear-gradient(135deg,rgba(123,94,248,.3),rgba(45,212,191,.15)); color:var(--text); box-shadow:0 4px 20px rgba(123,94,248,.2),inset 0 1px 0 rgba(255,255,255,.1); }
+    .btn-primary:hover:not(:disabled) { background:linear-gradient(135deg,rgba(123,94,248,.5),rgba(45,212,191,.25)); transform:translateY(-1px); }
+    .btn-danger { background:linear-gradient(135deg,rgba(251,113,133,.2),rgba(251,113,133,.1)); color:var(--rose); border-color:rgba(251,113,133,.3); display:none; }
+    .btn-danger:hover:not(:disabled) { background:linear-gradient(135deg,rgba(251,113,133,.35),rgba(251,113,133,.2)); transform:translateY(-1px); }
+    .btn-teal { background:linear-gradient(135deg,rgba(45,212,191,.2),rgba(45,212,191,.08)); color:var(--teal); border-color:rgba(45,212,191,.25); display:none; }
+    .btn-teal:hover:not(:disabled) { background:linear-gradient(135deg,rgba(45,212,191,.35),rgba(45,212,191,.15)); transform:translateY(-1px); }
+    .btn-ghost { background:transparent; color:var(--muted); border-color:rgba(255,255,255,.08); margin-top:8px; display:none; }
+    .btn-ghost:hover:not(:disabled) { color:var(--text); border-color:var(--border-h); }
+    .spinner { display:inline-block; width:14px; height:14px; border:1.5px solid rgba(255,255,255,.2); border-top-color:var(--text); border-radius:50%; animation:spin .7s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
 
-    /* ── Audio playback ── */
-    .playback-section {
-      margin-top: 16px;
-      padding: 16px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      display: none;
-    }
-    .playback-section.visible { display: block; }
-    .playback-label {
-      font-size: 12px; color: var(--muted);
-      margin-bottom: 10px; font-family: var(--mono);
-      text-transform: uppercase; letter-spacing: 0.5px;
-    }
-    audio {
-      width: 100%; border-radius: 8px;
-      accent-color: var(--accent);
-    }
+    .playback-wrap { margin-top:20px; padding:16px 20px; background:rgba(0,0,0,.2); border:1px solid var(--border); border-radius:14px; display:none; }
+    .playback-wrap.show { display:block; }
+    .playback-label { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
+    audio { width:100%; accent-color:var(--accent); }
 
-    /* ── Buttons ── */
-    .btn {
-      width: 100%; margin-top: 14px;
-      padding: 13px; border-radius: 11px; border: none;
-      font-family: var(--sans); font-size: 14.5px; font-weight: 600;
-      cursor: pointer; transition: all .2s;
-    }
-    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    /* RESULT */
+    .result-card { width:100%; max-width:680px; background:var(--glass); backdrop-filter:blur(24px); border:1px solid var(--border); border-radius:20px; overflow:hidden; display:none; animation:fadeUp .5s forwards; }
+    .result-card.show { display:block; }
+    .result-top { padding:32px 32px 24px; position:relative; }
+    .result-top::after { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--accent2),transparent); opacity:.4; }
+    .result-badge { display:inline-block; padding:4px 14px; border-radius:100px; font-size:10px; font-weight:600; letter-spacing:2.5px; text-transform:uppercase; margin-bottom:12px; }
+    .badge-real { background:rgba(45,212,191,.12); color:var(--teal); border:1px solid rgba(45,212,191,.25); }
+    .badge-fake { background:rgba(251,113,133,.12); color:var(--rose); border:1px solid rgba(251,113,133,.25); }
+    .result-label { font-family:var(--serif); font-size:52px; font-weight:300; line-height:1; margin-bottom:6px; letter-spacing:-1px; }
+    .label-real { color:var(--teal); }
+    .label-fake { color:var(--rose); }
+    .result-conf { font-size:13px; color:var(--muted); font-weight:300; }
+    .result-bars { padding:24px 32px 32px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; }
+    .bar-meta { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+    .bar-name { font-size:12px; font-weight:500; letter-spacing:.5px; }
+    .bar-pct { font-family:var(--serif); font-size:18px; font-weight:300; }
+    .bar-track { height:6px; background:rgba(255,255,255,.06); border-radius:3px; overflow:hidden; }
+    .bar-fill { height:100%; border-radius:3px; transition:width .8s cubic-bezier(.4,0,.2,1); }
+    .fill-real { background:linear-gradient(90deg,#0d9488,var(--teal)); }
+    .fill-fake { background:linear-gradient(90deg,#be123c,var(--rose)); }
+    .result-reset { display:block; text-align:center; padding:16px; font-size:12px; color:var(--muted); cursor:pointer; letter-spacing:1px; text-transform:uppercase; border-top:1px solid var(--border); transition:color .2s; }
+    .result-reset:hover { color:var(--text); }
 
-    .btn-primary {
-      background: linear-gradient(135deg, var(--accent), #8b7cf8);
-      color: #fff;
-      box-shadow: 0 4px 16px rgba(108,92,231,.35);
-    }
-    .btn-primary:hover:not(:disabled) {
-      transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(108,92,231,.45);
-    }
-    .btn-danger {
-      background: linear-gradient(135deg, #c0392b, var(--danger));
-      color: #fff; display: none;
-      box-shadow: 0 4px 14px rgba(225,112,85,.3);
-    }
-    .btn-danger:hover:not(:disabled) { transform: translateY(-1px); }
+    .panel { display:none; }
+    .panel.active { display:block; }
 
-    .btn-success {
-      background: linear-gradient(135deg, #00b894, var(--success));
-      color: #fff; display: none;
-      box-shadow: 0 4px 14px rgba(0,206,201,.3);
-    }
-    .btn-success:hover:not(:disabled) { transform: translateY(-1px); }
-
-    .btn-outline {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      margin-top: 8px;
-    }
-    .btn-outline:hover:not(:disabled) { border-color: var(--accent2); color: var(--text); }
-
-    .spinner {
-      display: inline-block; width: 15px; height: 15px;
-      border: 2px solid rgba(255,255,255,.25);
-      border-top-color: #fff; border-radius: 50%;
-      animation: spin .7s linear infinite;
-      margin-right: 8px; vertical-align: middle;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── Result ── */
-    .result {
-      margin-top: 24px; padding: 24px;
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      background: var(--surface2);
-      display: none;
-      animation: fadeUp .4s ease;
-    }
-    @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-
-    .result-badge {
-      display: inline-block;
-      font-family: var(--mono);
-      font-size: 11px; font-weight: 700;
-      letter-spacing: 1.5px;
-      padding: 4px 10px; border-radius: 6px;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-    }
-    .result-badge.real { background: rgba(0,206,201,.15); color: var(--success); }
-    .result-badge.fake { background: rgba(225,112,85,.15); color: var(--danger); }
-
-    .result-label { font-size: 30px; font-weight: 700; margin-bottom: 4px; font-family: var(--mono); }
-    .result-label.real { color: var(--success); }
-    .result-label.fake { color: var(--danger); }
-    .conf-text { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
-
-    .bar-row { margin-bottom: 12px; }
-    .bar-label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
-    .bar-label span:last-child { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-    .bar-track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
-    .bar-fill { height: 100%; border-radius: 4px; transition: width .7s cubic-bezier(.4,0,.2,1); }
-    .bar-fill.real { background: linear-gradient(90deg, #00b894, var(--success)); }
-    .bar-fill.fake { background: linear-gradient(90deg, #c0392b, var(--danger)); }
-
-    .reset {
-      display: block; text-align: center; margin-top: 16px;
-      font-size: 13px; color: #3a4a6a; cursor: pointer;
-      text-decoration: none; transition: color .2s;
-    }
-    .reset:hover { color: var(--muted); }
-
-    /* ── Responsive ── */
-    @media (max-width: 480px) {
-      .card { padding: 28px 20px; }
-      .logo-text { font-size: 19px; }
-    }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+    @media(max-width:600px){ .reminder-items{grid-template-columns:1fr} .reminder-card{padding:28px 24px} .card-inner{padding:24px} }
   </style>
 </head>
 <body>
-<div class="card">
+<div class="bg-orbs">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+<div class="page">
 
-  <!-- Header -->
-  <div class="header">
-    <div class="logo-icon">🛡️</div>
-    <div class="logo-text">Voice<span>Guard</span></div>
-  </div>
-  <p class="subtitle">Deteksi apakah suara ini asli manusia atau dihasilkan oleh AI (deepfake)</p>
-
-  <!-- Disclaimer -->
-  <div class="disclaimer">
-    ⚠️ <strong>Catatan:</strong> Model dilatih pada dataset suara manusia berbicara.
-    Akurasi optimal untuk input suara vokal manusia dengan kualitas rekaman yang baik.
-    Musik, suara lingkungan, atau rekaman kualitas rendah dapat menurunkan akurasi prediksi.
-  </div>
-
-  <!-- Tabs -->
-  <div class="tabs">
-    <button class="tab active" onclick="switchTab('upload')">📁 Upload File</button>
-    <button class="tab"        onclick="switchTab('record')">🎙️ Rekam Langsung</button>
-  </div>
-
-  <!-- ═══ Panel Upload ═══ -->
-  <div class="panel active" id="panel-upload">
-    <div class="drop-zone" id="dropZone" onclick="fileInput.click()">
-      <div class="drop-icon">🎵</div>
-      <p class="drop-text"><strong>Klik untuk pilih file</strong> atau drag & drop di sini</p>
-      <p class="drop-text">WAV · OGG · AAC · M4A · MP3</p>
-      <p class="file-name" id="fileName"></p>
+  <!-- HERO -->
+  <section class="hero">
+    <h1 class="hero-title">VoiceGuard<br></h1>
+    <p class="hero-sub">Unggah rekaman atau ucapkan langsung — sistem kami membedakan suara manusia asli dari hasil rekayasa kecerdasan buatan.</p>
+    <div class="mic-orb-wrap">
+      <div class="mic-ring"></div>
+      <div class="mic-ring-2"></div>
+      <div class="mic-ring-3"></div>
+      <div class="mic-orb" onclick="document.querySelector('.app-section').scrollIntoView({behavior:'smooth'})">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </div>
     </div>
-    <input type="file" id="fileInput" accept=".wav,.ogg,.aac,.m4a,.mp3" hidden>
-    <p class="format-note">Voice note WhatsApp (.ogg) langsung bisa digunakan</p>
-
-    <!-- Playback upload -->
-    <div class="playback-section" id="uploadPlayback">
-      <div class="playback-label">🎧 Dengarkan dulu sebelum analisis</div>
-      <audio id="uploadAudio" controls></audio>
-    </div>
-
-    <button class="btn btn-primary" id="uploadBtn" style="display:none" onclick="analyzeFile()">
-      Analisis Sekarang
+    <button class="btn-cta" onclick="document.querySelector('.app-section').scrollIntoView({behavior:'smooth'})">
+      Mulai Verifikasi
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
     </button>
-    <button class="btn btn-outline" id="uploadResetBtn" style="display:none" onclick="resetUpload()">
-      Pilih File Lain
-    </button>
-  </div>
-
-  <!-- ═══ Panel Rekam ═══ -->
-  <div class="panel" id="panel-record">
-    <div class="record-area">
-      <div class="record-icon" id="recIcon">🎙️</div>
-      <canvas id="waveform"></canvas>
-      <div class="timer" id="timer">0:00</div>
-      <div class="rec-progress-wrap" id="recProgressWrap">
-        <div class="rec-progress-bar" id="recProgressBar"></div>
-      </div>
-      <div class="rec-status" id="recStatus">Tekan tombol untuk mulai merekam</div>
-
-      <button class="btn btn-primary" id="startBtn" onclick="startRecording()">
-        ⏺ Mulai Rekam
-      </button>
-      <button class="btn btn-danger" id="stopBtn" onclick="stopRecording()">
-        ⏹ Stop Rekaman
-      </button>
+    <div class="scroll-hint">
+      <div class="line"></div>
+      <span>Gulir ke bawah</span>
     </div>
+  </section>
 
-    <!-- Playback rekaman -->
-    <div class="playback-section" id="recPlayback">
-      <div class="playback-label">🎧 Dengarkan hasil rekaman</div>
-      <audio id="recAudio" controls></audio>
-    </div>
-
-    <button class="btn btn-success" id="analyzeAfterBtn" onclick="analyzeRecording()">
-      ✅ Analisis Rekaman Ini
-    </button>
-    <button class="btn btn-outline" id="rerecordBtn" style="display:none" onclick="resetRecording()">
-      🔄 Rekam Ulang
-    </button>
-  </div>
-
-  <!-- ═══ Hasil Prediksi ═══ -->
-  <div class="result" id="result">
-    <div class="result-badge" id="resultBadge"></div>
-    <div class="result-label" id="resultLabel"></div>
-    <div class="conf-text"   id="confText"></div>
-
-    <div class="bar-row">
-      <div class="bar-label">
-        <span>Real (Suara Asli)</span>
-        <span id="realPct">0%</span>
-      </div>
-      <div class="bar-track">
-        <div class="bar-fill real" id="realBar" style="width:0%"></div>
+  <!-- REMINDER -->
+  <section class="reminder-section">
+    <div class="reminder-card">
+      <span class="reminder-icon">⚠️</span>
+      <p class="reminder-label">Perhatian Sebelum Mulai</p>
+      <h2 class="reminder-title">Hasil deteksi bergantung pada<br><em>kejernihan suara & perangkat</em></h2>
+      <p class="reminder-body">Model VoiceGuard dilatih khusus pada dataset suara manusia berbicara. Beberapa kondisi berikut dapat memengaruhi akurasi prediksi sistem.</p>
+      <div class="reminder-items">
+        <div class="reminder-item"><span class="dot"></span><span>Mikrofon berkualitas rendah dapat mengurangi ketepatan analisis</span></div>
+        <div class="reminder-item"><span class="dot"></span><span>Musik, suara latar, atau kebisingan lingkungan memengaruhi hasil</span></div>
+        <div class="reminder-item"><span class="dot"></span><span>Rekaman dengan durasi sangat pendek hanya 10 detik</span></div>
+        <div class="reminder-item"><span class="dot"></span><span>File audio dengan kompresi tinggi atau kualitas sangat rendah</span></div>
       </div>
     </div>
+  </section>
 
-    <div class="bar-row">
-      <div class="bar-label">
-        <span>Deepfake (AI Generated)</span>
-        <span id="fakePct">0%</span>
-      </div>
-      <div class="bar-track">
-        <div class="bar-fill fake" id="fakeBar" style="width:0%"></div>
+  <!-- APP -->
+  <section class="app-section">
+    <p class="section-label">Panel Verifikasi</p>
+    <div class="glass-card">
+      <div class="card-inner">
+        <div class="tabs">
+          <button class="tab active" onclick="switchTab('upload')">📁 Unggah File</button>
+          <button class="tab" onclick="switchTab('record')">🎙️ Rekam Langsung</button>
+        </div>
+
+        <!-- Upload -->
+        <div class="panel active" id="panel-upload">
+          <div class="drop-zone" id="dropZone" onclick="fileInput.click()">
+            <div class="drop-icon">🎵</div>
+            <p class="drop-title">Letakkan file audio di sini</p>
+            <p class="drop-sub">atau klik untuk memilih dari perangkat</p>
+            <div class="drop-formats">
+              <span class="fmt-badge">WAV</span><span class="fmt-badge">OGG</span><span class="fmt-badge">AAC</span><span class="fmt-badge">M4A</span><span class="fmt-badge">MP3</span>
+            </div>
+            <p class="file-chosen" id="fileName"></p>
+          </div>
+          <input type="file" id="fileInput" accept=".wav,.ogg,.aac,.m4a,.mp3" hidden>
+          <div class="playback-wrap" id="uploadPlayback">
+            <p class="playback-label">🎧 Dengarkan sebelum analisis</p>
+            <audio id="uploadAudio" controls></audio>
+          </div>
+          <button class="btn btn-primary" id="uploadBtn" style="display:none;margin-top:20px" onclick="analyzeFile()">Analisis Sekarang</button>
+          <button class="btn btn-ghost" id="uploadReset" onclick="resetUpload()">Pilih file lain</button>
+        </div>
+
+        <!-- Record -->
+        <div class="panel" id="panel-record">
+          <div class="record-area">
+            <div class="rec-orb-wrap">
+              <div class="rec-orb" id="recOrb">🎙️</div>
+            </div>
+            <p class="rec-title" id="recTitle">Siap merekam</p>
+            <p class="rec-status" id="recStatus">Tekan tombol untuk mulai</p>
+            <div class="timer" id="timer">0:00</div>
+            <div class="prog-wrap" id="progWrap"><div class="prog-bar" id="progBar"></div></div>
+            <canvas id="waveform"></canvas>
+            <button class="btn btn-primary" id="startBtn" onclick="startRec()">⏺ Mulai Rekam</button>
+            <button class="btn btn-danger" id="stopBtn" onclick="stopRec()">⏹ Stop Rekaman</button>
+          </div>
+          <div class="playback-wrap" id="recPlayback">
+            <p class="playback-label">🎧 Dengarkan hasil rekaman</p>
+            <audio id="recAudio" controls></audio>
+          </div>
+          <button class="btn btn-teal" id="analyzeRecBtn" onclick="analyzeRec()" style="margin-top:16px">✅ Analisis Rekaman Ini</button>
+          <button class="btn btn-ghost" id="rerecBtn" onclick="resetRec()">🔄 Rekam Ulang</button>
+        </div>
       </div>
     </div>
 
-    <span class="reset" onclick="fullReset()">↩ Coba file atau rekaman lain</span>
-  </div>
-
-</div><!-- /card -->
+    <!-- Result -->
+    <div class="result-card" id="resultCard">
+      <div class="result-top">
+        <div class="result-badge" id="resBadge"></div>
+        <div class="result-label" id="resLabel"></div>
+        <p class="result-conf" id="resConf"></p>
+      </div>
+      <div class="result-bars">
+        <div class="bar-row">
+          <div class="bar-meta">
+            <span class="bar-name" style="color:var(--teal)">Suara Asli (Real)</span>
+            <span class="bar-pct" id="realPct" style="color:var(--teal)">0%</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill fill-real" id="realBar" style="width:0%"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-meta">
+            <span class="bar-name" style="color:var(--rose)">Deepfake (AI Generated)</span>
+            <span class="bar-pct" id="fakePct" style="color:var(--rose)">0%</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill fill-fake" id="fakeBar" style="width:0%"></div></div>
+        </div>
+      </div>
+      <span class="result-reset" onclick="fullReset()">↩ Coba Audio Lain</span>
+    </div>
+  </section>
+</div>
 
 <script>
-  // ══════════════════════════════════════════════════
-  //  TAB SWITCHER
-  // ══════════════════════════════════════════════════
   function switchTab(tab) {
-    const tabs = document.querySelectorAll(".tab");
-    tabs[0].classList.toggle("active", tab === "upload");
-    tabs[1].classList.toggle("active", tab === "record");
-    document.getElementById("panel-upload").classList.toggle("active", tab === "upload");
-    document.getElementById("panel-record").classList.toggle("active", tab === "record");
-    document.getElementById("result").style.display = "none";
+    document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',(tab==='upload'&&i===0)||(tab==='record'&&i===1)));
+    document.getElementById('panel-upload').classList.toggle('active',tab==='upload');
+    document.getElementById('panel-record').classList.toggle('active',tab==='record');
+    document.getElementById('resultCard').classList.remove('show');
   }
 
-  // ══════════════════════════════════════════════════
-  //  UPLOAD FILE
-  // ══════════════════════════════════════════════════
-  const fileInput = document.getElementById("fileInput");
-  const dropZone  = document.getElementById("dropZone");
-  let selectedFile = null;
+  const fileInput=document.getElementById('fileInput'),dropZone=document.getElementById('dropZone');
+  let selectedFile=null;
+  fileInput.addEventListener('change',e=>setFile(e.target.files[0]));
+  dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over');});
+  dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');setFile(e.dataTransfer.files[0]);});
 
-  fileInput.addEventListener("change", e => setFile(e.target.files[0]));
-
-  dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
-  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
-  dropZone.addEventListener("drop", e => {
-    e.preventDefault();
-    dropZone.classList.remove("drag-over");
-    setFile(e.dataTransfer.files[0]);
-  });
-
-  function setFile(f) {
-    if (!f) return;
-    selectedFile = f;
-    document.getElementById("fileName").textContent = "📎 " + f.name;
-
-    // Tampilkan audio player untuk dengar dulu
-    const uploadAudio   = document.getElementById("uploadAudio");
-    uploadAudio.src     = URL.createObjectURL(f);
-    document.getElementById("uploadPlayback").classList.add("visible");
-
-    document.getElementById("uploadBtn").style.display      = "block";
-    document.getElementById("uploadResetBtn").style.display = "block";
-    document.getElementById("result").style.display         = "none";
+  function setFile(f){
+    if(!f)return; selectedFile=f;
+    document.getElementById('fileName').textContent='📎 '+f.name;
+    document.getElementById('uploadAudio').src=URL.createObjectURL(f);
+    document.getElementById('uploadPlayback').classList.add('show');
+    document.getElementById('uploadBtn').style.display='flex';
+    document.getElementById('uploadReset').style.display='flex';
+    document.getElementById('resultCard').classList.remove('show');
   }
 
-  async function analyzeFile() {
-    if (!selectedFile) return;
-    const btn = document.getElementById("uploadBtn");
-    btn.disabled  = true;
-    btn.innerHTML = '<span class="spinner"></span>Menganalisis...';
-
-    const form = new FormData();
-    form.append("audio", selectedFile);
+  async function analyzeFile(){
+    if(!selectedFile)return;
+    const btn=document.getElementById('uploadBtn');
+    btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Menganalisis…';
+    const form=new FormData(); form.append('audio',selectedFile);
     await sendToServer(form);
-
-    btn.disabled  = false;
-    btn.innerHTML = "Analisis Sekarang";
+    btn.disabled=false; btn.textContent='Analisis Sekarang';
   }
 
-  function resetUpload() {
-    selectedFile = null;
-    fileInput.value = "";
-    document.getElementById("fileName").textContent             = "";
-    document.getElementById("uploadBtn").style.display          = "none";
-    document.getElementById("uploadResetBtn").style.display     = "none";
-    document.getElementById("uploadPlayback").classList.remove("visible");
-    document.getElementById("uploadAudio").src                  = "";
-    document.getElementById("result").style.display             = "none";
+  function resetUpload(){
+    selectedFile=null; fileInput.value='';
+    document.getElementById('fileName').textContent='';
+    document.getElementById('uploadPlayback').classList.remove('show');
+    document.getElementById('uploadAudio').src='';
+    document.getElementById('uploadBtn').style.display='none';
+    document.getElementById('uploadReset').style.display='none';
+    document.getElementById('resultCard').classList.remove('show');
     resetBars();
   }
 
-  // ══════════════════════════════════════════════════
-  //  REKAM LANGSUNG
-  // ══════════════════════════════════════════════════
-  const MAX_SECONDS = 10;
-  let mediaRecorder = null;
-  let audioChunks   = [];
-  let timerInterval = null;
-  let elapsed       = 0;
-  let animFrame     = null;
-  let analyserNode  = null;
-  let canvasCtx     = null;
-  let recordedBlob  = null;
+  const MAX_SEC=10;
+  let mediaRecorder=null,audioChunks=[],elapsed=0,timerInt=null,animFrame=null,analyserNode=null,recordedBlob=null;
 
-  async function startRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      setupWaveform(stream);
-
-      mediaRecorder = new MediaRecorder(stream);
-      audioChunks   = [];
-      recordedBlob  = null;
-
-      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-      mediaRecorder.onstop = () => {
-        stopWaveform();
-        recordedBlob = new Blob(audioChunks, { type: "audio/webm" });
-
-        // Tampilkan audio player
-        const recAudio = document.getElementById("recAudio");
-        recAudio.src   = URL.createObjectURL(recordedBlob);
-        document.getElementById("recPlayback").classList.add("visible");
-
-        // Tampilkan tombol analisis & rekam ulang
-        document.getElementById("analyzeAfterBtn").style.display = "block";
-        document.getElementById("rerecordBtn").style.display     = "block";
-
-        // Reset UI rekam
-        document.getElementById("stopBtn").style.display  = "none";
-        document.getElementById("startBtn").style.display = "none";
-        document.getElementById("recIcon").textContent    = "✅";
-        document.getElementById("recStatus").textContent  = "Rekaman selesai — dengarkan dulu, lalu klik Analisis";
-        document.getElementById("timer").classList.remove("visible");
-        document.getElementById("recProgressWrap").classList.remove("visible");
-        document.getElementById("waveform").classList.remove("visible");
-        document.getElementById("recProgressBar").style.width = "0%";
+  async function startRec(){
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      setupWave(stream);
+      mediaRecorder=new MediaRecorder(stream); audioChunks=[]; recordedBlob=null;
+      mediaRecorder.ondataavailable=e=>audioChunks.push(e.data);
+      mediaRecorder.onstop=()=>{
+        stopWave();
+        recordedBlob=new Blob(audioChunks,{type:'audio/webm'});
+        document.getElementById('recAudio').src=URL.createObjectURL(recordedBlob);
+        document.getElementById('recPlayback').classList.add('show');
+        document.getElementById('analyzeRecBtn').style.display='flex';
+        document.getElementById('rerecBtn').style.display='flex';
+        document.getElementById('startBtn').style.display='flex';
+        document.getElementById('stopBtn').style.display='none';
+        document.getElementById('recOrb').textContent='✅';
+        document.getElementById('recOrb').classList.remove('recording');
+        document.getElementById('recTitle').textContent='Rekaman selesai';
+        document.getElementById('recStatus').textContent='Dengarkan dulu, lalu klik Analisis';
+        document.getElementById('timer').classList.remove('show');
+        document.getElementById('progWrap').classList.remove('show');
+        document.getElementById('waveform').classList.remove('show');
+        document.getElementById('progBar').style.width='0%';
       };
-
-      mediaRecorder.start();
-      elapsed = 0;
-      updateTimer();
-
-      timerInterval = setInterval(() => {
-        elapsed++;
-        updateTimer();
-        document.getElementById("recProgressBar").style.width = (elapsed / MAX_SECONDS * 100) + "%";
-        if (elapsed >= MAX_SECONDS) stopRecording();
-      }, 1000);
-
-      // UI saat rekam
-      document.getElementById("startBtn").style.display = "none";
-      document.getElementById("stopBtn").style.display  = "block";
-      document.getElementById("recIcon").textContent    = "🔴";
-      document.getElementById("recStatus").innerHTML    = '<span class="dot"></span>Sedang merekam... (maks 10 detik)';
-      document.getElementById("timer").classList.add("visible");
-      document.getElementById("recProgressWrap").classList.add("visible");
-      document.getElementById("waveform").classList.add("visible");
-      document.getElementById("recPlayback").classList.remove("visible");
-      document.getElementById("analyzeAfterBtn").style.display = "none";
-      document.getElementById("rerecordBtn").style.display     = "none";
-      document.getElementById("result").style.display          = "none";
-
-    } catch (err) {
-      alert("Tidak bisa akses mikrofon.\nPastikan izin mikrofon sudah diberikan di browser.");
-    }
+      mediaRecorder.start(); elapsed=0; updateTimer();
+      timerInt=setInterval(()=>{
+        elapsed++;updateTimer();
+        document.getElementById('progBar').style.width=(elapsed/MAX_SEC*100)+'%';
+        if(elapsed>=MAX_SEC)stopRec();
+      },1000);
+      document.getElementById('startBtn').style.display='none';
+      document.getElementById('stopBtn').style.display='flex';
+      document.getElementById('analyzeRecBtn').style.display='none';
+      document.getElementById('rerecBtn').style.display='none';
+      document.getElementById('recOrb').textContent='🔴';
+      document.getElementById('recOrb').classList.add('recording');
+      document.getElementById('recTitle').textContent='Sedang merekam…';
+      document.getElementById('recStatus').innerHTML='<span class="rec-dot"></span>Rekaman aktif — maks. 10 detik';
+      document.getElementById('timer').classList.add('show');
+      document.getElementById('progWrap').classList.add('show');
+      document.getElementById('waveform').classList.add('show');
+      document.getElementById('recPlayback').classList.remove('show');
+      document.getElementById('resultCard').classList.remove('show');
+    }catch{alert('Tidak bisa akses mikrofon. Pastikan izin diberikan di browser.');}
   }
 
-  function stopRecording() {
-    if (!mediaRecorder || mediaRecorder.state === "inactive") return;
-    clearInterval(timerInterval);
-    mediaRecorder.stop();
-    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+  function stopRec(){
+    if(!mediaRecorder||mediaRecorder.state==='inactive')return;
+    clearInterval(timerInt); mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(t=>t.stop());
   }
 
-  async function analyzeRecording() {
-    if (!recordedBlob) return;
-    const btn = document.getElementById("analyzeAfterBtn");
-    btn.disabled  = true;
-    btn.innerHTML = '<span class="spinner"></span>Menganalisis...';
-
-    const file = new File([recordedBlob], "rekaman.webm", { type: "audio/webm" });
-    const form = new FormData();
-    form.append("audio", file);
+  async function analyzeRec(){
+    if(!recordedBlob)return;
+    const btn=document.getElementById('analyzeRecBtn');
+    btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Menganalisis…';
+    const file=new File([recordedBlob],'rekaman.webm',{type:'audio/webm'});
+    const form=new FormData(); form.append('audio',file);
     await sendToServer(form);
-
-    btn.disabled  = false;
-    btn.innerHTML = "✅ Analisis Rekaman Ini";
+    btn.disabled=false; btn.innerHTML='✅ Analisis Rekaman Ini';
   }
 
-  function resetRecording() {
-    recordedBlob  = null;
-    audioChunks   = [];
-    elapsed       = 0;
-    document.getElementById("recIcon").textContent              = "🎙️";
-    document.getElementById("recStatus").textContent            = "Tekan tombol untuk mulai merekam";
-    document.getElementById("startBtn").style.display           = "block";
-    document.getElementById("stopBtn").style.display            = "none";
-    document.getElementById("analyzeAfterBtn").style.display    = "none";
-    document.getElementById("rerecordBtn").style.display        = "none";
-    document.getElementById("recPlayback").classList.remove("visible");
-    document.getElementById("recAudio").src                     = "";
-    document.getElementById("result").style.display             = "none";
+  function resetRec(){
+    recordedBlob=null; elapsed=0;
+    document.getElementById('recOrb').textContent='🎙️';
+    document.getElementById('recOrb').classList.remove('recording');
+    document.getElementById('recTitle').textContent='Siap merekam';
+    document.getElementById('recStatus').textContent='Tekan tombol untuk mulai';
+    document.getElementById('startBtn').style.display='flex';
+    document.getElementById('stopBtn').style.display='none';
+    document.getElementById('analyzeRecBtn').style.display='none';
+    document.getElementById('rerecBtn').style.display='none';
+    document.getElementById('recPlayback').classList.remove('show');
+    document.getElementById('recAudio').src='';
+    document.getElementById('resultCard').classList.remove('show');
     resetBars();
   }
 
-  function updateTimer() {
-    const m = Math.floor(elapsed / 60);
-    const s = elapsed % 60;
-    document.getElementById("timer").textContent = `${m}:${s.toString().padStart(2, "0")}`;
-  }
+  function updateTimer(){const m=Math.floor(elapsed/60),s=elapsed%60;document.getElementById('timer').textContent=`${m}:${s.toString().padStart(2,'0')}`;}
 
-  // ── Waveform visualizer ──────────────────────────
-  function setupWaveform(stream) {
-    const audioCtx  = new AudioContext();
-    const source    = audioCtx.createMediaStreamSource(stream);
-    analyserNode    = audioCtx.createAnalyser();
-    analyserNode.fftSize = 512;
-    source.connect(analyserNode);
-
-    const canvas    = document.getElementById("waveform");
-    canvasCtx       = canvas.getContext("2d");
-    canvas.width    = canvas.offsetWidth * window.devicePixelRatio;
-    canvas.height   = 52 * window.devicePixelRatio;
-    canvas.style.width  = "100%";
-    canvas.style.height = "52px";
-    drawWaveform();
-  }
-
-  function drawWaveform() {
-    const canvas = document.getElementById("waveform");
-    const data   = new Uint8Array(analyserNode.fftSize);
-    analyserNode.getByteTimeDomainData(data);
-
-    canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-    canvasCtx.strokeStyle = "#a29bfe";
-    canvasCtx.lineWidth   = 1.5;
-    canvasCtx.shadowColor = "#6c5ce7";
-    canvasCtx.shadowBlur  = 6;
-    canvasCtx.beginPath();
-
-    const sliceW = canvas.width / data.length;
-    let x = 0;
-    data.forEach((v, i) => {
-      const y = (v / 128.0) * (canvas.height / 2);
-      i === 0 ? canvasCtx.moveTo(x, y) : canvasCtx.lineTo(x, y);
-      x += sliceW;
-    });
-    canvasCtx.stroke();
-    animFrame = requestAnimationFrame(drawWaveform);
-  }
-
-  function stopWaveform() {
-    cancelAnimationFrame(animFrame);
-  }
-
-  // ══════════════════════════════════════════════════
-  //  KIRIM KE BACKEND & TAMPILKAN HASIL
-  // ══════════════════════════════════════════════════
-  async function sendToServer(formData) {
-    try {
-      const res  = await fetch("/predict", { method: "POST", body: formData });
-      const data = await res.json();
-      if (data.error) { alert("Error: " + data.error); return; }
-      showResult(data);
-    } catch (err) {
-      alert("Gagal terhubung ke server: " + err.message);
+  function setupWave(stream){
+    const ctx=new AudioContext(),src=ctx.createMediaStreamSource(stream);
+    analyserNode=ctx.createAnalyser(); analyserNode.fftSize=512; src.connect(analyserNode);
+    const cv=document.getElementById('waveform'),cx=cv.getContext('2d');
+    cv.width=cv.offsetWidth*window.devicePixelRatio; cv.height=48*window.devicePixelRatio;
+    cv.style.width='100%'; cv.style.height='48px';
+    function draw(){
+      const data=new Uint8Array(analyserNode.fftSize);
+      analyserNode.getByteTimeDomainData(data);
+      cx.clearRect(0,0,cv.width,cv.height);
+      cx.strokeStyle='rgba(167,139,250,0.8)'; cx.lineWidth=1.5;
+      cx.shadowColor='#7b5ef8'; cx.shadowBlur=6;
+      cx.beginPath();
+      const sl=cv.width/data.length; let x=0;
+      data.forEach((v,i)=>{const y=(v/128)*(cv.height/2);i===0?cx.moveTo(x,y):cx.lineTo(x,y);x+=sl;});
+      cx.stroke(); animFrame=requestAnimationFrame(draw);
     }
+    draw();
+  }
+  function stopWave(){cancelAnimationFrame(animFrame);}
+
+  async function sendToServer(form){
+    try{
+      const res=await fetch('/predict',{method:'POST',body:form});
+      const data=await res.json();
+      if(data.error){alert('Error: '+data.error);return;}
+      showResult(data);
+    }catch(e){alert('Gagal terhubung ke server: '+e.message);}
   }
 
-  function showResult(data) {
-    const isReal = data.label === "REAL";
-
-    document.getElementById("resultBadge").textContent  = isReal ? "✔ Terdeteksi Asli" : "⚠ Terdeteksi Deepfake";
-    document.getElementById("resultBadge").className    = "result-badge " + (isReal ? "real" : "fake");
-    document.getElementById("resultLabel").textContent  = data.label;
-    document.getElementById("resultLabel").className    = "result-label " + (isReal ? "real" : "fake");
-    document.getElementById("confText").textContent     = `Keyakinan model: ${data.confidence}% · Probabilitas real ${data.prob_real}% / deepfake ${data.prob_fake}%`;
-    document.getElementById("realPct").textContent      = data.prob_real + "%";
-    document.getElementById("fakePct").textContent      = data.prob_fake + "%";
-    document.getElementById("result").style.display     = "block";
-
-    setTimeout(() => {
-      document.getElementById("realBar").style.width = data.prob_real + "%";
-      document.getElementById("fakeBar").style.width = data.prob_fake + "%";
-    }, 60);
+  function showResult(data){
+    const isReal=data.label==='REAL';
+    document.getElementById('resBadge').textContent=isReal?'✔ Terdeteksi Asli':'⚠ Terdeteksi Deepfake';
+    document.getElementById('resBadge').className='result-badge '+(isReal?'badge-real':'badge-fake');
+    document.getElementById('resLabel').textContent=data.label;
+    document.getElementById('resLabel').className='result-label '+(isReal?'label-real':'label-fake');
+    document.getElementById('resConf').textContent=`Keyakinan model: ${data.confidence}%  ·  Real ${data.prob_real}%  /  Fake ${data.prob_fake}%`;
+    document.getElementById('realPct').textContent=data.prob_real+'%';
+    document.getElementById('fakePct').textContent=data.prob_fake+'%';
+    const card=document.getElementById('resultCard');
+    card.classList.add('show');
+    card.scrollIntoView({behavior:'smooth',block:'nearest'});
+    setTimeout(()=>{
+      document.getElementById('realBar').style.width=data.prob_real+'%';
+      document.getElementById('fakeBar').style.width=data.prob_fake+'%';
+    },60);
   }
 
-  function resetBars() {
-    document.getElementById("realBar").style.width = "0%";
-    document.getElementById("fakeBar").style.width = "0%";
-  }
-
-  function fullReset() {
-    resetUpload();
-    resetRecording();
-    document.getElementById("result").style.display = "none";
-  }
+  function resetBars(){document.getElementById('realBar').style.width='0%';document.getElementById('fakeBar').style.width='0%';}
+  function fullReset(){resetUpload();resetRec();document.getElementById('resultCard').classList.remove('show');}
 </script>
 </body>
 </html>
