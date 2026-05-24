@@ -6,4 +6,3 @@ Pillow
 numpy
 gunicorn
 gdown
-static-ffmpeg==2.5.0
